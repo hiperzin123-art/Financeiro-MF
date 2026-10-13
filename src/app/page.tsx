@@ -105,9 +105,9 @@ export default function Home() {
       />
 
       {/* Conteúdo Principal */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto h-screen">
-        {/* Barra superior de contexto */}
-        <header className="bg-white border-b border-slate-200/80 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto h-screen pt-16 lg:pt-0 pb-20 lg:pb-0">
+        {/* Barra superior de contexto (apenas no desktop, no mobile usamos o app bar nativo) */}
+        <header className="hidden lg:flex bg-white border-b border-slate-200/80 px-8 py-4 items-center justify-between sticky top-0 z-10">
           <div>
             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">
               {currentTab === 'overview' && 'Visão Geral & Indicadores'}
@@ -117,7 +117,7 @@ export default function Home() {
               {currentTab === 'accounts' && 'Contas & Carteiras'}
               {currentTab === 'cards' && 'Cartões de Crédito'}
               {currentTab === 'budgets' && 'Orçamentos & Metas'}
-              {currentTab === 'bills' && 'Contas a Pagar & Receber'}
+              {currentTab === 'bills' && 'Gastos Fixos & Contas'}
               {currentTab === 'debts' && 'Dívidas & Empréstimos'}
               {currentTab === 'networth' && 'Patrimônio Líquido'}
               {currentTab === 'alerts' && 'Alertas Financeiros'}
@@ -144,7 +144,7 @@ export default function Home() {
         </header>
 
         {/* Corpo da Aba Selecionada */}
-        <div className="p-8 flex-1">
+        <div className="p-4 sm:p-6 lg:p-8 flex-1">
           {currentTab === 'overview' && (
             <OverviewTab
               data={dashboardData}
