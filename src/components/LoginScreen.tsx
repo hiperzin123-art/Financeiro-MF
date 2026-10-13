@@ -112,34 +112,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {/* Atalhos Rápidos para os Administradores Cadastrados */}
-        <div className="mt-8 pt-6 border-t border-slate-100">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2 text-center">
-            Selecione o Administrador:
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('marcelocar')}
-              className="py-2 px-3 text-xs font-bold rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 transition-all flex items-center justify-center space-x-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>marcelocar</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('fernanda')}
-              className="py-2 px-3 text-xs font-bold rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-slate-700 transition-all flex items-center justify-center space-x-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>fernanda</span>
-            </button>
-          </div>
-          <p className="text-[11px] text-slate-400 text-center mt-3">
-            Senha padrão inicial: <strong className="text-slate-600">123</strong>
-          </p>
-        </div>
       </div>
     </div>
   );
