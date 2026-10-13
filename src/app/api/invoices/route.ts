@@ -51,3 +51,39 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const invoiceId = searchParams.get('id');
+    const all = searchParams.get('all');
+
+    if (all === 'true') {
+      await prisma.transaction.deleteMany({
+        where: { invoiceId: { not: null } },
+      });
+      await prisma.invoice.deleteMany();
+      return NextResponse.json({ success: true, message: 'Todas as faturas foram apagadas com sucesso' });
+    }
+
+    if (!invoiceId) {
+      return NextResponse.json({ error: 'ID da fatura é obrigatório' }, { status: 400 });
+    }
+
+    // Deleta as transações associadas a esta fatura
+    await prisma.transaction.deleteMany({
+      where: { invoiceId },
+    });
+
+    // Deleta a fatura
+    await prisma.invoice.delete({
+      where: { id: invoiceId },
+    });
+
+    return NextResponse.json({ success: true, deletedInvoiceId: invoiceId });
+  } catch (error: any) {
+    console.error('Erro ao deletar fatura:', error);
+    return NextResponse.json({ error: error.message || 'Erro ao deletar fatura' }, { status: 500 });
+  }
+}
+

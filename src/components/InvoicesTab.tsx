@@ -12,6 +12,8 @@ import {
   FileSearch,
   ChevronDown,
   ChevronUp,
+  Trash2,
+  Calendar,
 } from 'lucide-react';
 import { formatCentsToBRL } from '@/lib/financialEngine';
 
@@ -19,6 +21,21 @@ interface InvoicesTabProps {
   creditCards: any[];
   onImportComplete: () => void;
 }
+
+const MONTHS = [
+  { value: 1, label: 'Janeiro' },
+  { value: 2, label: 'Fevereiro' },
+  { value: 3, label: 'Março' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Maio' },
+  { value: 6, label: 'Junho' },
+  { value: 7, label: 'Julho' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Setembro' },
+  { value: 10, label: 'Outubro' },
+  { value: 11, label: 'Novembro' },
+  { value: 12, label: 'Dezembro' },
+];
 
 export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportComplete }) => {
   const [selectedCardId, setSelectedCardId] = useState(creditCards[0]?.id || '');
@@ -30,6 +47,10 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [celebrationList, setCelebrationList] = useState<Array<{ description: string; totalInstallments: number }>>([]);
+
+  // Mês e Ano de Referência da fatura importada
+  const [invoiceMonth, setInvoiceMonth] = useState<number>(new Date().getMonth() + 1);
+  const [invoiceYear, setInvoiceYear] = useState<number>(new Date().getFullYear());
 
   // Histórico de faturas salvas
   const [invoicesHistory, setInvoicesHistory] = useState<any[]>([]);
@@ -94,6 +115,24 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       }
 
       setExtractedData(json.data);
+
+      // Detectar automaticamente o mês mais frequente das compras para pré-selecionar o mês da fatura
+      const counts: Record<string, number> = {};
+      for (const t of json.data.transactions) {
+        if (t.date) {
+          const parts = t.date.split('-');
+          if (parts.length >= 2) {
+            const k = `${parts[0]}-${parts[1]}`;
+            counts[k] = (counts[k] || 0) + 1;
+          }
+        }
+      }
+      const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+      if (best) {
+        const [y, m] = best.split('-');
+        setInvoiceYear(parseInt(y, 10));
+        setInvoiceMonth(parseInt(m, 10));
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao processar arquivo');
     } finally {
@@ -123,15 +162,19 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
           creditCardId: selectedCardId || undefined,
           transactions: extractedData.transactions,
           bankOrIssuer: extractedData.bankOrIssuer,
+          invoiceMonth,
+          invoiceYear,
         }),
       });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Erro ao salvar transações');
 
-      setSuccessMsg(
-        `${result.importedCount} lançamentos da fatura foram importados com sucesso! As parcelas futuras em andamento já foram agendadas como compromisso para o próximo mês.`
-      );
+      let msg = `Fatura ${result.referenceMonth.toString().padStart(2, '0')}/${result.referenceYear} com ${result.importedCount} lançamentos importada com sucesso!`;
+      if (result.futureInstallmentsCount > 0) {
+        msg += ` E criadas automaticamente as faturas dos próximos meses com ${result.futureInstallmentsCount} parcelas futuras agendadas (ex: próximas de 5/10).`;
+      }
+      setSuccessMsg(msg);
 
       // Notificação festiva quando uma dívida parcelada acabou
       if (result.finishedDebts && result.finishedDebts.length > 0) {
@@ -147,6 +190,50 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       setErrorMsg(err.message || 'Erro ao gravar itens da fatura');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (invId: string, label: string) => {
+    if (!confirm(`Tem certeza que deseja apagar a fatura "${label}" e todos os seus lançamentos?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/invoices?id=${invId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao apagar fatura');
+      }
+
+      setSuccessMsg(`Fatura "${label}" excluída com sucesso!`);
+      loadInvoicesHistory();
+      onImportComplete();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao excluir fatura');
+    }
+  };
+
+  const handleClearAllInvoices = async () => {
+    if (!confirm('Deseja realmente apagar TODAS as faturas importadas no sistema e seus lançamentos de cartão?')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/invoices?all=true', {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao apagar faturas');
+      }
+
+      setSuccessMsg('Todas as faturas foram apagadas com sucesso!');
+      loadInvoicesHistory();
+      onImportComplete();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao apagar faturas');
     }
   };
 
@@ -167,6 +254,9 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       console.error(e);
     }
   };
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -204,7 +294,7 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <h2 className="text-xl font-bold text-slate-800">Importador Inteligente de Faturas em PDF</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Extraia lançamentos de faturas (Digio, Mercado Pago, Nubank, Inter, etc.), coloque tags personalizadas em compras (ex: Shopee ➔ Presente dia das crianças) e visualize todas as faturas salvas.
+          Extraia lançamentos de faturas (Digio, Mercado Pago, Nubank, Inter, Bradesco, etc.), adicione tags personalizadas e agende automaticamente compras parceladas nas faturas dos próximos meses como nos apps de cartão.
         </p>
 
         {/* Escolha do Cartão de Destino */}
@@ -261,13 +351,13 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
                 setPastedText(e.target.value);
                 if (e.target.value) setFile(null);
               }}
-              placeholder="Cole aqui linhas da fatura..."
-              className="flex-1 p-3 border border-slate-200 rounded-2xl text-xs resize-none focus:outline-emerald-500"
+              placeholder="Cole aqui linhas da sua fatura contendo datas, descrições e valores..."
+              className="w-full flex-1 p-3 border border-slate-200 rounded-xl text-xs font-mono focus:outline-emerald-500 bg-slate-50/50"
             />
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end">
+        <div className="mt-5 flex justify-end">
           <button
             onClick={handleParse}
             disabled={loading || (!file && !pastedText.trim())}
@@ -294,7 +384,7 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
         </div>
       )}
 
-      {/* Tabela de Revisão com TAGS Customizáveis antes de Gravar */}
+      {/* Tabela de Revisão com TAGS Customizáveis e Mês de Referência antes de Gravar */}
       {extractedData && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
@@ -326,6 +416,43 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
             </button>
           </div>
 
+          {/* Mês e Ano de Referência da Fatura */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-2.5 text-slate-700">
+              <Calendar className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-600 block">Mês de Referência da Fatura</span>
+                <span className="text-xs text-slate-500">
+                  Todas as compras desta fatura pertencerão a este mês, e compras parceladas (ex: 5/10) criarão as próximas faturas mensais automaticamente.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <select
+                value={invoiceMonth}
+                onChange={(e) => setInvoiceMonth(parseInt(e.target.value, 10))}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-emerald-500"
+              >
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={invoiceYear}
+                onChange={(e) => setInvoiceYear(parseInt(e.target.value, 10))}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-800 focus:outline-emerald-500"
+              >
+                {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="max-h-[32rem] overflow-y-auto divide-y divide-slate-100">
             {extractedData.transactions.map((tx: any, idx: number) => (
               <div key={idx} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
@@ -338,7 +465,7 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
                         Parcela {tx.installmentCurrent} de {tx.installmentTotal}
                         {tx.installmentCurrent < tx.installmentTotal && (
                           <span className="text-emerald-700 ml-1.5 font-bold">
-                            ➔ Próxima parcela será agendada
+                            ➔ Próximas {tx.installmentTotal - tx.installmentCurrent} parcelas serão criadas nos meses seguintes
                           </span>
                         )}
                         {tx.installmentCurrent === tx.installmentTotal && (
@@ -390,12 +517,25 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
         </div>
       )}
 
-      {/* Histórico: Ver Faturas Importadas e Gerenciar Tags Existentes */}
+      {/* Histórico: Ver Faturas Importadas, Excluir Faturas e Gerenciar Tags Existentes */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
-        <h3 className="font-bold text-slate-800 text-base mb-4 flex items-center space-x-2">
-          <FileSearch className="w-5 h-5 text-emerald-600" />
-          <span>Faturas Importadas no Sistema</span>
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h3 className="font-bold text-slate-800 text-base flex items-center space-x-2">
+            <FileSearch className="w-5 h-5 text-emerald-600" />
+            <span>Faturas Importadas no Sistema</span>
+          </h3>
+
+          {invoicesHistory.length > 0 && (
+            <button
+              onClick={handleClearAllInvoices}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 flex items-center space-x-1.5 transition-colors self-start sm:self-auto"
+              title="Excluir todas as faturas"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpar Todas as Faturas</span>
+            </button>
+          )}
+        </div>
 
         {loadingHistory ? (
           <p className="text-sm text-slate-400 text-center py-4">Carregando faturas...</p>
@@ -405,6 +545,9 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
           <div className="space-y-3">
             {invoicesHistory.map((inv) => {
               const isExpanded = expandedInvoiceId === inv.id;
+              const isFutureInvoice =
+                inv.year > currentYear || (inv.year === currentYear && inv.month > currentMonth);
+
               return (
                 <div key={inv.id} className="border border-slate-200 rounded-xl overflow-hidden">
                   <div
@@ -412,17 +555,41 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
                     className="p-4 bg-slate-50 hover:bg-slate-100 cursor-pointer flex justify-between items-center transition-colors"
                   >
                     <div>
-                      <span className="font-bold text-slate-800 text-sm">
-                        {inv.creditCard?.name} — Fatura {inv.month.toString().padStart(2, '0')}/{inv.year}
-                      </span>
-                      <p className="text-xs text-slate-400">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="font-bold text-slate-800 text-sm">
+                          {inv.creditCard?.name} — Fatura {inv.month.toString().padStart(2, '0')}/{inv.year}
+                        </span>
+                        {isFutureInvoice && (
+                          <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full">
+                            Próxima Fatura (Agendada)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
                         Vencimento: {new Date(inv.dueDate).toLocaleDateString('pt-BR')} • {inv.transactions?.length || 0} lançamentos
                       </p>
                     </div>
+
                     <div className="flex items-center space-x-3">
                       <span className="font-bold text-slate-900 text-sm">
                         {formatCentsToBRL(inv.totalAmount)}
                       </span>
+
+                      {/* Botão de Excluir Fatura */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteInvoice(
+                            inv.id,
+                            `${inv.creditCard?.name} - ${inv.month.toString().padStart(2, '0')}/${inv.year}`
+                          );
+                        }}
+                        title="Excluir esta fatura e seus lançamentos"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
                       {isExpanded ? (
                         <ChevronUp className="w-4 h-4 text-slate-400" />
                       ) : (
