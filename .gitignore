@@ -34,6 +34,5 @@ yarn-error.log*
 *.sln
 *.sw?
 
-# SQLite local (em produção na Vercel o banco deve vir de DATABASE_URL em nuvem, ex: Neon/Supabase/Postgres)
-*.db
+# SQLite
 *.db-journal
