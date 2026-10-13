@@ -109,17 +109,18 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
   };
 
   const handleSaveTransactions = async () => {
-    if (!extractedData || !selectedCardId) return;
+    if (!extractedData) return;
 
     setSubmitting(true);
     setErrorMsg('');
+    setSuccessMsg('');
 
     try {
       const res = await fetch('/api/invoices/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          creditCardId: selectedCardId,
+          creditCardId: selectedCardId || undefined,
           transactions: extractedData.transactions,
           bankOrIssuer: extractedData.bankOrIssuer,
         }),
@@ -129,7 +130,7 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       if (!res.ok) throw new Error(result.error || 'Erro ao salvar transações');
 
       setSuccessMsg(
-        `${result.importedCount} lançamentos da fatura foram importados! As parcelas futuras em andamento já foram agendadas como compromisso para o próximo mês.`
+        `${result.importedCount} lançamentos da fatura foram importados com sucesso! As parcelas futuras em andamento já foram agendadas como compromisso para o próximo mês.`
       );
 
       // Notificação festiva quando uma dívida parcelada acabou
@@ -211,17 +212,23 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
           <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
             Selecione o Cartão Correspondente
           </label>
-          <select
-            value={selectedCardId}
-            onChange={(e) => setSelectedCardId(e.target.value)}
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-emerald-500 bg-white"
-          >
-            {creditCards.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {creditCards && creditCards.length > 0 ? (
+            <select
+              value={selectedCardId}
+              onChange={(e) => setSelectedCardId(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-emerald-500 bg-white"
+            >
+              {creditCards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="text-xs text-emerald-800 bg-emerald-50/80 p-3 rounded-xl border border-emerald-200 font-medium">
+              ✨ Cartão identificado automaticamente: Ao confirmar, o sistema criará ou vinculará o cartão correspondente com base no emissor da fatura.
+            </div>
+          )}
         </div>
 
         {/* Zona de Upload */}
@@ -290,7 +297,7 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
       {/* Tabela de Revisão com TAGS Customizáveis antes de Gravar */}
       {extractedData && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
             <div>
               <h3 className="font-bold text-slate-800 text-base">
                 Pré-visualização: {extractedData.bankOrIssuer}
@@ -303,10 +310,19 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
             <button
               onClick={handleSaveTransactions}
               disabled={submitting || extractedData.transactions.length === 0}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow transition-all flex items-center space-x-2"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm shadow transition-all flex items-center justify-center space-x-2"
             >
-              <span>{submitting ? 'Gravando e Agendando...' : 'Confirmar e Importar Todos'}</span>
-              <CheckCircle2 className="w-4 h-4" />
+              {submitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Gravando e Agendando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Confirmar e Importar Todos</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
 
@@ -350,6 +366,26 @@ export const InvoicesTab: React.FC<InvoicesTabProps> = ({ creditCards, onImportC
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex justify-end">
+            <button
+              onClick={handleSaveTransactions}
+              disabled={submitting || extractedData.transactions.length === 0}
+              className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm shadow transition-all flex items-center justify-center space-x-2"
+            >
+              {submitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Gravando e Agendando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Confirmar e Importar Todos ({extractedData.transactions.length})</span>
+                  <CheckCircle2 className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

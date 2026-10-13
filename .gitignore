@@ -35,4 +35,7 @@ yarn-error.log*
 *.sw?
 
 # SQLite
+*.db
 *.db-journal
+*.tsbuildinfo
+
