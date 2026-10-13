@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./financeiro.db"
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  INVESTMENT
+  CASH
+  DIGITAL_WALLET
+  OTHER
+}
+
+enum CardBrand {
+  NUBANK
+  INTER
+  ITAU
+  BRADESCO
+  SANTANDER
+  BB
+  CAIXA
+  C6
+  XP
+  OUTRO
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+  CREDIT_CARD_EXPENSE
+  INVOICE_PAYMENT
+  DEBT_PAYMENT
+  LOAN_GIVEN
+  LOAN_RECEIVED
+  REIMBURSEMENT
+  BALANCE_ADJUSTMENT
+}
+
+enum TransactionStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+}
+
+enum BillType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum RecurrenceFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model Account {
+  id              String        @id @default(uuid())
+  name            String
+  type            AccountType   @default(CHECKING)
+  color           String?       @default("#10b981")
+  initialBalance  Int           @default(0) // Armazenado em centavos
+  currentBalance  Int           @default(0) // Armazenado em centavos
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  originTransactions      Transaction[] @relation("OriginAccount")
+  destinationTransactions Transaction[] @relation("DestinationAccount")
+  bills                   Bill[]
+}
+
+model CreditCard {
+  id              String      @id @default(uuid())
+  name            String
+  brand           CardBrand   @default(OUTRO)
+  color           String?     @default("#6366f1")
+  creditLimit     Int         @default(0) // Armazenado em centavos
+  closingDay      Int         @default(1)
+  dueDay          Int         @default(10)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  invoices        Invoice[]
+  transactions    Transaction[]
+}
+
+model Category {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  color       String?           @default("#6b7280")
+  icon        String?           @default("Tag")
+  isIncome    Boolean           @default(false)
+  isExpense   Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  transactions Transaction[]
+  budgets      Budget[]
+  bills        Bill[]
+}
+
+model Transaction {
+  id                  String             @id @default(uuid())
+  description         String
+  amount              Int                // Valor em centavos
+  date                DateTime
+  type                TransactionType
+  status              TransactionStatus  @default(COMPLETED)
+  paymentMethod       String?            // Pix, Dinheiro, Débito, Crédito, Boleto, Ted
+  notes               String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  accountId           String?
+  account             Account?           @relation("OriginAccount", fields: [accountId], references: [id], onDelete: SetNull)
+
+  destinationAccountId String?
+  destinationAccount  Account?          @relation("DestinationAccount", fields: [destinationAccountId], references: [id], onDelete: SetNull)
+
+  creditCardId        String?
+  creditCard          CreditCard?        @relation(fields: [creditCardId], references: [id], onDelete: SetNull)
+
+  invoiceId           String?
+  invoice             Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  categoryId          String?
+  category            Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  installmentPlanId   String?
+  installmentPlan     InstallmentPlan?   @relation(fields: [installmentPlanId], references: [id], onDelete: SetNull)
+  currentInstallment  Int?
+  totalInstallments   Int?
+
+  relatedPerson       String?            // Para empréstimos e reembolsos
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  creditCardId    String
+  creditCard      CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  month           Int           // 1 a 12
+  year            Int           // ex: 2026
+  closingDate     DateTime
+  dueDate         DateTime
+  totalAmount     Int           @default(0) // Valor em centavos
+  paidAmount      Int           @default(0) // Valor pago em centavos
+  isPaid          Boolean       @default(false)
+  importedFile    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  transactions    Transaction[]
+
+  @@unique([creditCardId, month, year])
+}
+
+model InstallmentPlan {
+  id              String        @id @default(uuid())
+  description     String
+  totalAmount     Int           // Em centavos
+  installmentCount Int
+  amountPerInstallment Int      // Em centavos
+  startDate       DateTime
+  categoryName    String?
+  creditCardName  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  transactions    Transaction[]
+}
+
+model Bill {
+  id              String              @id @default(uuid())
+  title           String
+  amount          Int                 // Em centavos
+  dueDate         DateTime
+  type            BillType            // PAYABLE ou RECEIVABLE
+  isFixed         Boolean             @default(false)
+  recurrence      RecurrenceFrequency @default(NONE)
+  isPaid          Boolean             @default(false)
+  paidAt          DateTime?
+  notes           String?
+  relatedPerson   String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  categoryId      String?
+  category        Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  accountId       String?
+  account         Account?            @relation(fields: [accountId], references: [id], onDelete: SetNull)
+}
+
+model DebtLoan {
+  id              String        @id @default(uuid())
+  title           String
+  description     String?
+  personName      String
+  isToReceive     Boolean       // true = emprestei / a receber; false = dívida que devo pagar
+  originalAmount  Int           // Em centavos
+  remainingAmount Int           // Em centavos
+  interestAmount  Int           @default(0) // Em centavos
+  dueDate         DateTime?
+  isSettled       Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Budget {
+  id              String        @id @default(uuid())
+  month           Int
+  year            Int
+  amountLimit     Int           // Em centavos
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  categoryId      String
+  category        Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, month, year])
+}
+
+model FinancialGoal {
+  id              String        @id @default(uuid())
+  title           String
+  targetAmount    Int           // Em centavos
+  currentAmount   Int           @default(0) // Em centavos
+  deadline        DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model AuditLog {
+  id              String        @id @default(uuid())
+  action          String
+  entity          String
+  entityId        String
+  details         String?
+  timestamp       DateTime      @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  name      String
+  password  String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
