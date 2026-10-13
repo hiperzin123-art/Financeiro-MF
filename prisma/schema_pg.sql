@@ -1,8 +1,35 @@
+-- Tipos ENUM nativos do PostgreSQL
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AccountType') THEN
+    CREATE TYPE "AccountType" AS ENUM ('CHECKING', 'SAVINGS', 'INVESTMENT', 'CASH', 'DIGITAL_WALLET', 'OTHER');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'CardBrand') THEN
+    CREATE TYPE "CardBrand" AS ENUM ('NUBANK', 'INTER', 'ITAU', 'BRADESCO', 'SANTANDER', 'BB', 'CAIXA', 'C6', 'XP', 'OUTRO');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TransactionType') THEN
+    CREATE TYPE "TransactionType" AS ENUM ('EXPENSE', 'INCOME', 'TRANSFER', 'CREDIT_CARD_EXPENSE', 'INVOICE_PAYMENT', 'DEBT_PAYMENT', 'LOAN_GIVEN', 'LOAN_RECEIVED', 'REIMBURSEMENT', 'BALANCE_ADJUSTMENT');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TransactionStatus') THEN
+    CREATE TYPE "TransactionStatus" AS ENUM ('COMPLETED', 'PENDING', 'CANCELLED');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'BillType') THEN
+    CREATE TYPE "BillType" AS ENUM ('PAYABLE', 'RECEIVABLE');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RecurrenceFrequency') THEN
+    CREATE TYPE "RecurrenceFrequency" AS ENUM ('NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY');
+  END IF;
+END $$;
+
 -- Tabela Account
 CREATE TABLE IF NOT EXISTS "Account" (
   "id" TEXT PRIMARY KEY,
   "name" TEXT NOT NULL,
-  "type" TEXT NOT NULL DEFAULT 'CHECKING',
+  "type" "AccountType" NOT NULL DEFAULT 'CHECKING',
   "color" TEXT DEFAULT '#10b981',
   "initialBalance" INTEGER NOT NULL DEFAULT 0,
   "currentBalance" INTEGER NOT NULL DEFAULT 0,
@@ -15,7 +42,7 @@ CREATE TABLE IF NOT EXISTS "Account" (
 CREATE TABLE IF NOT EXISTS "CreditCard" (
   "id" TEXT PRIMARY KEY,
   "name" TEXT NOT NULL,
-  "brand" TEXT NOT NULL DEFAULT 'OUTRO',
+  "brand" "CardBrand" NOT NULL DEFAULT 'OUTRO',
   "color" TEXT DEFAULT '#6366f1',
   "creditLimit" INTEGER NOT NULL DEFAULT 0,
   "closingDay" INTEGER NOT NULL DEFAULT 1,
@@ -74,8 +101,8 @@ CREATE TABLE IF NOT EXISTS "Transaction" (
   "description" TEXT NOT NULL,
   "amount" INTEGER NOT NULL,
   "date" TIMESTAMP(3) NOT NULL,
-  "type" TEXT NOT NULL,
-  "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+  "type" "TransactionType" NOT NULL,
+  "status" "TransactionStatus" NOT NULL DEFAULT 'COMPLETED',
   "paymentMethod" TEXT,
   "notes" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -97,9 +124,9 @@ CREATE TABLE IF NOT EXISTS "Bill" (
   "title" TEXT NOT NULL,
   "amount" INTEGER NOT NULL,
   "dueDate" TIMESTAMP(3) NOT NULL,
-  "type" TEXT NOT NULL,
+  "type" "BillType" NOT NULL,
   "isFixed" BOOLEAN NOT NULL DEFAULT false,
-  "recurrence" TEXT NOT NULL DEFAULT 'NONE',
+  "recurrence" "RecurrenceFrequency" NOT NULL DEFAULT 'NONE',
   "isPaid" BOOLEAN NOT NULL DEFAULT false,
   "paidAt" TIMESTAMP(3),
   "notes" TEXT,
